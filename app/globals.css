@@ -95,6 +95,54 @@ button.btn.primary {
   font-weight: 600;
 }
 
+.field-label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.field-hint {
+  font-size: 0.8rem;
+  margin: 8px 0 0;
+}
+
+.text-input {
+  width: 100%;
+  resize: vertical;
+  min-height: 200px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.text-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+button.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.content-preview {
+  white-space: pre-wrap;
+  word-break: break-word;
+  text-align: left;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--text);
+  max-height: 360px;
+  overflow-y: auto;
+}
+
 .tile-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
