@@ -5,6 +5,9 @@ import Link from "next/link";
 
 const SOURCE_KEY = "study:sourceContent";
 const ANALYSIS_KEY = "study:analysis";
+// The exact text the cached analysis was generated from. Used to detect
+// when the user has gone back and edited the source, so we re-analyze.
+const ANALYZED_TEXT_KEY = "study:analyzedText";
 
 export default function TopicsPage() {
   const [status, setStatus] = useState("idle"); // idle | loading | done | error
@@ -12,8 +15,8 @@ export default function TopicsPage() {
   const [analysis, setAnalysis] = useState(null);
 
   const runAnalysis = useCallback(async () => {
-    const text = window.localStorage.getItem(SOURCE_KEY) || "";
-    if (!text.trim()) {
+    const text = (window.localStorage.getItem(SOURCE_KEY) || "").trim();
+    if (!text) {
       setStatus("error");
       setError("No study material found. Go back and paste some text first.");
       return;
@@ -33,6 +36,8 @@ export default function TopicsPage() {
       }
       setAnalysis(data.analysis);
       window.localStorage.setItem(ANALYSIS_KEY, JSON.stringify(data.analysis));
+      // Remember which text this result came from so we can detect edits.
+      window.localStorage.setItem(ANALYZED_TEXT_KEY, text);
       setStatus("done");
     } catch (err) {
       setStatus("error");
@@ -41,9 +46,13 @@ export default function TopicsPage() {
   }, []);
 
   useEffect(() => {
-    // Reuse a prior result if present; otherwise analyze on first load.
+    // Reuse a prior result only if the source text is unchanged since the
+    // last analysis. If the user went back and edited the text, re-run.
+    const currentText = (window.localStorage.getItem(SOURCE_KEY) || "").trim();
     const cached = window.localStorage.getItem(ANALYSIS_KEY);
-    if (cached) {
+    const analyzedText = window.localStorage.getItem(ANALYZED_TEXT_KEY);
+
+    if (cached && analyzedText === currentText) {
       try {
         setAnalysis(JSON.parse(cached));
         setStatus("done");
