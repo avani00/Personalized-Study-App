@@ -121,6 +121,18 @@ button.btn.primary {
   line-height: 1.5;
 }
 
+/* Auto-resizing variant: height is controlled by JS, so no fixed
+   min-height and no manual resize handle. */
+.text-input.autosize {
+  resize: none;
+  min-height: 0;
+  overflow-y: hidden;
+}
+
+.field-label-spaced {
+  margin-top: 20px;
+}
+
 .text-input:focus {
   outline: none;
   border-color: var(--accent);
@@ -146,6 +158,33 @@ button.btn:disabled {
 .error-text {
   color: #ff8a8a;
   margin: 0;
+}
+
+.file-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.file-button {
+  cursor: pointer;
+}
+
+.file-name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.88rem;
+  color: var(--text);
+  word-break: break-all;
+}
+
+.link-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  text-decoration: underline;
+  padding: 0;
 }
 
 .section-label {
@@ -174,7 +213,8 @@ button.btn:disabled {
   font-size: 0.88rem;
 }
 
-a.btn.disabled {
+a.btn.disabled,
+.btn.disabled {
   opacity: 0.45;
   pointer-events: none;
 }
