@@ -44,13 +44,7 @@ export default function SourcePage() {
     el.style.overflowY = fitHeight > maxHeight ? "auto" : "hidden";
   }, []);
 
-  // Restore any previously pasted content when returning to this step.
-  useEffect(() => {
-    const saved = window.localStorage.getItem(STORAGE_KEY);
-    if (saved) setContent(saved);
-  }, []);
-
-  // Re-fit whenever the content changes (typing, file load, restore).
+  // Re-fit whenever the content changes (typing, file load).
   useEffect(() => {
     resizeTextarea();
   }, [content, resizeTextarea]);
