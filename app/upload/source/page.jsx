@@ -1,106 +1,109 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { extractPdfText } from "@/lib/pdf/extractPdfText";
 
-// Key used to persist the pasted study material across the flow.
+// Key used to persist the extracted study material across the flow.
 // Later steps (and the eventual LLM call) read the content from here.
 const STORAGE_KEY = "study:sourceContent";
-
-// Auto-resizing textarea bounds (in lines).
-const MIN_LINES = 2;
-const MAX_LINES = 15;
 
 export default function SourcePage() {
   const router = useRouter();
   const fileInputRef = useRef(null);
-  const textareaRef = useRef(null);
-  const [content, setContent] = useState("");
-  const [fileName, setFileName] = useState("");
+  // Each entry: { id, name, text }
+  const [files, setFiles] = useState([]);
   const [fileError, setFileError] = useState("");
   const [extracting, setExtracting] = useState(false);
+  const [dragging, setDragging] = useState(false);
 
-  // Grow the textarea to fit its content, between MIN_LINES and MAX_LINES.
-  // Beyond MAX_LINES it stops growing and scrolls instead.
-  const resizeTextarea = useCallback(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    const style = window.getComputedStyle(el);
-    const lineHeight = parseFloat(style.lineHeight) || 20;
-    const paddingY =
-      parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
-    const borderY =
-      parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
-    const minHeight = lineHeight * MIN_LINES + paddingY + borderY;
-    const maxHeight = lineHeight * MAX_LINES + paddingY + borderY;
-
-    el.style.height = "auto";
-    // scrollHeight is content + padding; add border for border-box sizing.
-    const fitHeight = el.scrollHeight + borderY;
-    const next = Math.min(Math.max(fitHeight, minHeight), maxHeight);
-    el.style.height = `${next}px`;
-    el.style.overflowY = fitHeight > maxHeight ? "auto" : "hidden";
-  }, []);
-
-  // Re-fit whenever the content changes (typing, file load).
-  useEffect(() => {
-    resizeTextarea();
-  }, [content, resizeTextarea]);
-
-  // Re-fit on viewport resize, since wrapping affects height.
-  useEffect(() => {
-    window.addEventListener("resize", resizeTextarea);
-    return () => window.removeEventListener("resize", resizeTextarea);
-  }, [resizeTextarea]);
-
-  const handleFile = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const processFiles = async (fileList) => {
+    const incoming = Array.from(fileList || []);
+    if (incoming.length === 0) return;
 
     setFileError("");
-    const isPdf =
-      file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+    const errors = [];
+    const pdfs = [];
+    for (const file of incoming) {
+      const isPdf =
+        file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+      if (isPdf) pdfs.push(file);
+      else errors.push(`${file.name} is not a PDF`);
+    }
 
-    try {
-      let text;
-      if (isPdf) {
-        setExtracting(true);
-        text = await extractPdfText(file);
-        if (!text) {
-          throw new Error(
-            "No selectable text found (the PDF may be scanned images)."
-          );
+    if (pdfs.length > 0) {
+      setExtracting(true);
+      const extracted = [];
+      for (const file of pdfs) {
+        try {
+          const text = await extractPdfText(file);
+          if (!text) {
+            errors.push(`${file.name}: no selectable text`);
+            continue;
+          }
+          extracted.push({ id: crypto.randomUUID(), name: file.name, text });
+        } catch (err) {
+          errors.push(`${file.name}: ${err.message}`);
         }
-      } else {
-        // Plain-text files: use the content exactly as-is.
-        text = await file.text();
       }
-      setContent(text);
-      setFileName(file.name);
-    } catch (err) {
-      setFileError(`Could not read that file. ${err.message}`);
-      setFileName("");
-    } finally {
+      if (extracted.length > 0) {
+        // Append, skipping any file whose name is already in the list.
+        setFiles((prev) => {
+          const existing = new Set(prev.map((f) => f.name));
+          return [...prev, ...extracted.filter((f) => !existing.has(f.name))];
+        });
+      }
       setExtracting(false);
     }
+
+    if (errors.length > 0) setFileError(errors.join(" · "));
+    // Reset so re-selecting the same file still fires onChange.
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const clearFile = () => {
-    setFileName("");
+  const openPicker = () => {
+    if (!extracting) fileInputRef.current?.click();
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    if (!extracting) setDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragging(false);
+    if (extracting) return;
+    processFiles(e.dataTransfer.files);
+  };
+
+  const removeFile = (id) => {
+    setFiles((prev) => prev.filter((f) => f.id !== id));
+  };
+
+  const clearAll = () => {
+    setFiles([]);
     setFileError("");
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleContinue = () => {
-    // sourceContent is the variable that will later be fed into the LLM.
-    const sourceContent = content.trim();
-    window.localStorage.setItem(STORAGE_KEY, sourceContent);
+    // sourceContent is the combined text fed into the LLM later.
+    window.localStorage.setItem(STORAGE_KEY, combinedContent);
     router.push("/upload/preview");
   };
 
-  const charCount = content.trim().length;
+  const combinedContent = files
+    .map((f) => f.text)
+    .join("\n\n")
+    .trim();
+  const charCount = combinedContent.length;
 
   return (
     <>
@@ -108,62 +111,98 @@ export default function SourcePage() {
         <Link href="/">Home</Link> / Upload new
       </div>
 
-      <h1>Paste text / upload file</h1>
-      <p className="muted">Step 1 of 6 — Add the material you want to study.</p>
+      <h1>Upload PDFs</h1>
+      <p className="muted">Step 1 of 6 — Add the PDFs you want to study.</p>
 
       <div className="panel">
-        <span className="field-label">Upload a file</span>
-        <div className="file-row">
-          <label className={`btn file-button${extracting ? " disabled" : ""}`}>
-            {extracting ? "Extracting…" : "Choose file"}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".txt,.md,.markdown,.csv,.json,.log,.text,text/*,.pdf,application/pdf"
-              onChange={handleFile}
-              disabled={extracting}
-              hidden
-            />
-          </label>
-          {fileName && !extracting && (
-            <>
-              <span className="file-name">{fileName}</span>
-              <button type="button" className="btn link-btn" onClick={clearFile}>
-                Clear
-              </button>
-            </>
-          )}
+        <span className="field-label">Choose PDF files</span>
+
+        <div
+          className={`dropzone${dragging ? " dragging" : ""}${
+            extracting ? " disabled" : ""
+          }`}
+          onClick={openPicker}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              openPicker();
+            }
+          }}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,application/pdf"
+            multiple
+            onChange={(e) => processFiles(e.target.files)}
+            disabled={extracting}
+            hidden
+          />
+          <p className="dropzone-text">
+            {extracting ? "Extracting…" : "Drop PDFs here or click to upload"}
+          </p>
+          <button
+            type="button"
+            className="btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              openPicker();
+            }}
+            disabled={extracting}
+          >
+            Choose Files
+          </button>
         </div>
+
+        {files.length > 0 && (
+          <div className="file-list">
+            {files.map((f) => (
+              <div key={f.id} className="file-item">
+                <span className="file-name">{f.name}</span>
+                <span className="muted file-meta">
+                  {f.text.trim().length.toLocaleString()} chars
+                </span>
+                <button
+                  type="button"
+                  className="btn link-btn"
+                  onClick={() => removeFile(f.id)}
+                  disabled={extracting}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="btn link-btn"
+              onClick={clearAll}
+              disabled={extracting}
+            >
+              Clear all
+            </button>
+          </div>
+        )}
+
         {fileError ? (
           <p className="error-text field-hint">{fileError}</p>
         ) : extracting ? (
-          <p className="muted field-hint">Extracting text from the PDF…</p>
+          <p className="muted field-hint">Extracting text from the PDF(s)…</p>
+        ) : files.length > 0 ? (
+          <p className="muted field-hint">
+            {charCount.toLocaleString()} characters from {files.length} file
+            {files.length === 1 ? "" : "s"}.
+          </p>
         ) : (
           <p className="muted field-hint">
-            Supports plain-text files (.txt, .md, etc.) and PDFs. Extracted text
-            appears in the box below so you can review or edit it.
+            Only PDFs are accepted. You can add several. Scanned/image-only PDFs
+            won’t have extractable text.
           </p>
         )}
-
-        <label htmlFor="source-text" className="field-label field-label-spaced">
-          Or paste text
-        </label>
-        <textarea
-          id="source-text"
-          ref={textareaRef}
-          className="text-input autosize"
-          placeholder="Paste notes, an article, lecture text, etc."
-          value={content}
-          onChange={(e) => {
-            setContent(e.target.value);
-            // Typing over file-loaded text: drop the stale filename label.
-            if (fileName) setFileName("");
-          }}
-          rows={MIN_LINES}
-        />
-        <p className="muted field-hint">
-          {charCount} character{charCount === 1 ? "" : "s"} saved
-        </p>
       </div>
 
       <div className="actions">

@@ -160,12 +160,70 @@ button.btn:disabled {
   margin: 0;
 }
 
+.dropzone {
+  margin-top: 4px;
+  padding: 40px 24px;
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.dropzone:hover,
+.dropzone:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.dropzone.dragging {
+  border-color: var(--accent);
+  background: rgba(108, 140, 255, 0.08);
+}
+
+.dropzone.disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.dropzone-text {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 1.05rem;
+}
+
 .file-row {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
-  margin-top: 4px;
+  margin-top: 16px;
+}
+
+.file-list {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.file-item .file-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.file-meta {
+  font-size: 0.82rem;
+  white-space: nowrap;
 }
 
 .file-button {
