@@ -25,7 +25,7 @@ export default function TopicsPage() {
     setStatus("loading");
     setError("");
     try {
-      const res = await fetch("/api/analyze", {
+      const res = await fetch("/api/topics", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
@@ -73,11 +73,11 @@ export default function TopicsPage() {
       </div>
 
       <h1>Choose topics</h1>
-      <p className="muted">Step 3 of 6 — Topics extracted from your material.</p>
+      <p className="muted">Step 3 of 6 — Overarching topics from your material.</p>
 
       {status === "loading" && (
         <div className="panel">
-          <p className="muted">Analyzing your material with Gemini…</p>
+          <p className="muted">Finding topics with Ollama…</p>
         </div>
       )}
 
@@ -103,46 +103,16 @@ export default function TopicsPage() {
 
           {analysis.topics.map((topic, i) => (
             <div key={i} className="panel">
-              <h2>{topic.name}</h2>
+              <h2 style={{ marginBottom: topic.subtopics.length ? 10 : 0 }}>
+                {topic.name}
+              </h2>
 
               {topic.subtopics.length > 0 && (
-                <p className="muted" style={{ marginTop: 0 }}>
-                  {topic.subtopics.join(" · ")}
-                </p>
-              )}
-
-              {topic.key_points.length > 0 && (
-                <>
-                  <h3 className="section-label">Key points</h3>
-                  <ul className="point-list">
-                    {topic.key_points.map((kp, j) => (
-                      <li key={j}>
-                        <span>{kp.point}</span>
-                        {kp.excerpt && (
-                          <blockquote className="excerpt">“{kp.excerpt}”</blockquote>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-
-              {topic.definitions.length > 0 && (
-                <>
-                  <h3 className="section-label">Definitions</h3>
-                  <ul className="point-list">
-                    {topic.definitions.map((def, j) => (
-                      <li key={j}>
-                        <span>
-                          <strong>{def.term}:</strong> {def.definition}
-                        </span>
-                        {def.excerpt && (
-                          <blockquote className="excerpt">“{def.excerpt}”</blockquote>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </>
+                <ul className="subtopic-list">
+                  {topic.subtopics.map((sub, j) => (
+                    <li key={j}>{sub}</li>
+                  ))}
+                </ul>
               )}
             </div>
           ))}
