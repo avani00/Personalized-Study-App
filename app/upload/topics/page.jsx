@@ -1,24 +1,56 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 const SOURCE_KEY = "study:sourceContent";
 const ANALYSIS_KEY = "study:analysis";
 // The exact text the cached analysis was generated from. Used to detect
 // when the user has gone back and edited the source, so we re-analyze.
 const ANALYZED_TEXT_KEY = "study:analyzedText";
+// The selected subset (with summaries) used by later steps.
+const SELECTION_KEY = "study:selection";
+
+// Build the id used to track a subtopic's checkbox.
+const subId = (t, s) => `${t}.${s}`;
+// Childless topics are selectable directly.
+const topicId = (t) => `t${t}`;
 
 export default function TopicsPage() {
+  const router = useRouter();
   const [status, setStatus] = useState("idle"); // idle | loading | done | error
   const [error, setError] = useState("");
   const [analysis, setAnalysis] = useState(null);
+  const [selected, setSelected] = useState(() => new Set());
+
+  // Select everything by default once an analysis is available.
+  const selectAll = useCallback((data) => {
+    const next = new Set();
+    data.topics.forEach((topic, t) => {
+      if (topic.subtopics.length > 0) {
+        topic.subtopics.forEach((_, s) => next.add(subId(t, s)));
+      } else {
+        next.add(topicId(t));
+      }
+    });
+    setSelected(next);
+  }, []);
+
+  const applyAnalysis = useCallback(
+    (data) => {
+      setAnalysis(data);
+      selectAll(data);
+      setStatus("done");
+    },
+    [selectAll]
+  );
 
   const runAnalysis = useCallback(async () => {
     const text = (window.localStorage.getItem(SOURCE_KEY) || "").trim();
     if (!text) {
       setStatus("error");
-      setError("No study material found. Go back and paste some text first.");
+      setError("No study material found. Go back and upload a PDF first.");
       return;
     }
 
@@ -34,16 +66,14 @@ export default function TopicsPage() {
       if (!res.ok) {
         throw new Error(data?.error || "Analysis failed.");
       }
-      setAnalysis(data.analysis);
       window.localStorage.setItem(ANALYSIS_KEY, JSON.stringify(data.analysis));
-      // Remember which text this result came from so we can detect edits.
       window.localStorage.setItem(ANALYZED_TEXT_KEY, text);
-      setStatus("done");
+      applyAnalysis(data.analysis);
     } catch (err) {
       setStatus("error");
       setError(err.message);
     }
-  }, []);
+  }, [applyAnalysis]);
 
   useEffect(() => {
     // Reuse a prior result only if the source text is unchanged since the
@@ -54,15 +84,66 @@ export default function TopicsPage() {
 
     if (cached && analyzedText === currentText) {
       try {
-        setAnalysis(JSON.parse(cached));
-        setStatus("done");
+        applyAnalysis(JSON.parse(cached));
         return;
       } catch {
         // fall through to re-analyze
       }
     }
     runAnalysis();
-  }, [runAnalysis]);
+  }, [applyAnalysis, runAnalysis]);
+
+  const toggleSub = (t, s) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      const id = subId(t, s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleTopic = (t, topic) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (topic.subtopics.length > 0) {
+        const allOn = topic.subtopics.every((_, s) => next.has(subId(t, s)));
+        topic.subtopics.forEach((_, s) => {
+          if (allOn) next.delete(subId(t, s));
+          else next.add(subId(t, s));
+        });
+      } else {
+        const id = topicId(t);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+      }
+      return next;
+    });
+  };
+
+  // Derive the selected subset (with summaries) to persist for later steps.
+  const selection = useMemo(() => {
+    if (!analysis) return { subject: "", title: "", topics: [] };
+    const topics = analysis.topics
+      .map((topic, t) => {
+        const hasSubs = topic.subtopics.length > 0;
+        const subtopics = topic.subtopics.filter((_, s) =>
+          selected.has(subId(t, s))
+        );
+        const included = hasSubs ? subtopics.length > 0 : selected.has(topicId(t));
+        if (!included) return null;
+        return { name: topic.name, summary: topic.summary, subtopics };
+      })
+      .filter(Boolean);
+    return { subject: analysis.subject, title: analysis.title, topics };
+  }, [analysis, selected]);
+
+  const selectedCount = selection.topics.length;
+
+  const handleContinue = () => {
+    window.localStorage.setItem(SELECTION_KEY, JSON.stringify(selection));
+    router.push("/upload/settings");
+  };
 
   return (
     <>
@@ -73,7 +154,9 @@ export default function TopicsPage() {
       </div>
 
       <h1>Choose topics</h1>
-      <p className="muted">Step 3 of 6 — Overarching topics from your material.</p>
+      <p className="muted">
+        Step 3 of 6 — Select the topics and subtopics you want to study.
+      </p>
 
       {status === "loading" && (
         <div className="panel">
@@ -101,21 +184,45 @@ export default function TopicsPage() {
             <h2 style={{ margin: "4px 0 0" }}>{analysis.title}</h2>
           </div>
 
-          {analysis.topics.map((topic, i) => (
-            <div key={i} className="panel">
-              <h2 style={{ marginBottom: topic.subtopics.length ? 10 : 0 }}>
-                {topic.name}
-              </h2>
+          {analysis.topics.map((topic, t) => {
+            const hasSubs = topic.subtopics.length > 0;
+            const allOn = hasSubs
+              ? topic.subtopics.every((_, s) => selected.has(subId(t, s)))
+              : selected.has(topicId(t));
+            const someOn =
+              hasSubs && topic.subtopics.some((_, s) => selected.has(subId(t, s)));
 
-              {topic.subtopics.length > 0 && (
-                <ul className="subtopic-list">
-                  {topic.subtopics.map((sub, j) => (
-                    <li key={j}>{sub}</li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          ))}
+            return (
+              <div key={t} className="panel">
+                <label className="check-row check-topic">
+                  <input
+                    type="checkbox"
+                    checked={allOn}
+                    ref={(el) => {
+                      if (el) el.indeterminate = !allOn && someOn;
+                    }}
+                    onChange={() => toggleTopic(t, topic)}
+                  />
+                  <span>{topic.name}</span>
+                </label>
+
+                {hasSubs && (
+                  <div className="subtopic-checks">
+                    {topic.subtopics.map((sub, s) => (
+                      <label key={s} className="check-row">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(subId(t, s))}
+                          onChange={() => toggleSub(t, s)}
+                        />
+                        <span>{sub.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </>
       )}
 
@@ -123,13 +230,14 @@ export default function TopicsPage() {
         <Link href="/upload/preview" className="btn">
           ← Back
         </Link>
-        <Link
-          href="/upload/settings"
-          className={`btn primary${status === "done" ? "" : " disabled"}`}
-          aria-disabled={status !== "done"}
+        <button
+          type="button"
+          className="btn primary"
+          onClick={handleContinue}
+          disabled={status !== "done" || selectedCount === 0}
         >
           Choose settings →
-        </Link>
+        </button>
       </div>
     </>
   );

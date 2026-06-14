@@ -263,6 +263,96 @@ button.btn:disabled {
   margin-bottom: 4px;
 }
 
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.check-row input[type="checkbox"],
+.check-row input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.option-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.number-input {
+  width: 120px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.number-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.answer-input {
+  width: 100%;
+}
+
+.question-text {
+  margin: 0 0 16px;
+}
+
+.option-row {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.option-row.option-correct {
+  border-color: #4caf50;
+  background: rgba(76, 175, 80, 0.12);
+}
+
+.option-row.option-wrong {
+  border-color: #ff8a8a;
+  background: rgba(255, 138, 138, 0.12);
+}
+
+.hint-text {
+  margin: 16px 0 0;
+}
+
+.answer-reveal {
+  margin: 12px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.check-topic {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.subtopic-checks {
+  margin: 6px 0 0 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--muted);
+}
+
+.subtopic-checks .check-row {
+  font-size: 0.95rem;
+  font-weight: 400;
+}
+
 .point-list {
   margin: 0;
   padding-left: 18px;
