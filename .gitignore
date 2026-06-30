@@ -19,6 +19,9 @@ env/
 # demo / generated output
 output/
 
+# local vector database
+chroma_db/
+
 # env files
 .env
 .env*.local
