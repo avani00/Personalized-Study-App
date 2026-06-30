@@ -16,6 +16,9 @@ env/
 .DS_Store
 *.pem
 
+# demo / generated output
+output/
+
 # env files
 .env
 .env*.local
